@@ -13,3 +13,17 @@
 **Issue:** Non-completed orders, orders with a missing `customer_id` or a negative `amount` were included. \
 **Root cause:** No eligibility checks against the business rules before aggregation. \
 **Fix:** Include only completed orders with nonempty `order_id` and `customer_id`, a valid `order_date`, and `amount > 0`. 
+
+### 4. Conflicting duplicates double-counted
+**Issue:** `1009` appears twice with different amounts, and both rows were counted in `revenue` and `order_count`. \
+**Root cause:** `dropDuplicates()` removes only exact duplicate rows, and `count("order_id")` counts non-null values in the order_id column without deduplication. \
+**Fix:** Collapse exact duplicates to one row; exclude `order_id`s with conflicting details and report them separately.
+
+### Tests
+**Issue:** The original test used a single valid row and only checked column names, so it passed despite every issue above. \
+**Fix:** Added tests to make sure:
+- A parametrized test for each ineligibility condition, with a valid control row to identify over-filtering.
+- Exact duplicates are counted once.
+- Conflicting orders are excluded and reported.
+- Revenue uses exact decimal arithmetic. 
+- End-to-end report on `data/orders.csv`.

@@ -1,7 +1,7 @@
 """Run with: python -m order_pipeline.pipeline"""
 from pathlib import Path
 from pyspark.sql import SparkSession
-from order_pipeline.transforms import prepare_orders, daily_revenue
+from order_pipeline.transforms import build_daily_report
 
 
 def main() -> None:
@@ -13,11 +13,16 @@ def main() -> None:
     )
     try:
         raw = spark.read.option("header", True).csv(str(root / "data" / "orders.csv"))
-        result = daily_revenue(prepare_orders(raw))
+        result, conflicts = build_daily_report(raw)
         result.show(truncate=False)
-        output = root / "output" / "daily_revenue"
-        result.write.mode("overwrite").parquet(str(output))
-        print(f"Saved report to {output}")
+        output = root / "output"
+        result.write.mode("overwrite").parquet(str(output / "daily_revenue"))
+
+        conflicts.write.mode("overwrite").parquet(str(output / "conflicting_orders"))
+        conflict_count = conflicts.select("order_id").distinct().count()
+        print(f"Found {conflict_count} conflicting orders; see {output / 'conflicting_orders'}")
+        
+        print(f"Saved revenuereport to {output / 'daily_revenue'}")
     finally:
         spark.stop()
 
